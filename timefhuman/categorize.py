@@ -10,7 +10,7 @@ from .data import Token
 import datetime
 
 
-def categorize(tokens, now):
+def categorize(tokens, now=datetime.datetime.now()):
     """
     >>> now = datetime.datetime(2018, 8, 6, 6, 0)
     >>> categorize(['upcoming', 'Monday', 'noon'], now)
@@ -67,7 +67,7 @@ def convert_day_of_week(tokens, now=datetime.datetime.now()):
             for index, token in enumerate(tokens):
                 if isinstance(token, str) and string.lower() == token.lower():
                     new_index, tokens, weeks = extract_weeks_offset(tokens, end=index)
-                    day = now + datetime.timedelta(weeks*7 + i)
+                    day = now + datetime.timedelta(weeks * 7 + i)
                     tokens[new_index] = DayToken(day.month, day.day, day.year)
                     break
     return tokens
@@ -86,9 +86,8 @@ def convert_relative_days(tokens, now=datetime.datetime.now()):
             (("yesterday",), DayToken.from_datetime(now - datetime.timedelta(1)))):
         for keyword in keywords:
             tokens = [replacement if token == keyword else token \
-                        for token in tokens]
+                      for token in tokens]
     return tokens
-
 
 
 # TODO: convert to new token-based system
@@ -117,7 +116,7 @@ def extract_weeks_offset(tokens, end=None, key_tokens=(
             tokens[start] in key_tokens:
         candidate = tokens[start]
         if candidate == 'upcoming':
-            return start, tokens[:end-1] + tokens[end:], 0
+            return start, tokens[:end - 1] + tokens[end:], 0
         if candidate == 'next':
             offset += 1
         elif candidate in ('previous', 'prev', 'last', 'past'):
@@ -150,7 +149,7 @@ def convert_time_of_day(tokens):
             ('midnight', [TimeToken(12, 'am')])):
         if keyword in temp_tokens:
             index = temp_tokens.index(keyword)
-            tokens = tokens[:index] + time_tokens + tokens[index+1:]
+            tokens = tokens[:index] + time_tokens + tokens[index + 1:]
     return tokens
 
 
@@ -190,37 +189,37 @@ def maybe_substitute_using_month(tokens, now=datetime.datetime.now()):
         if index is None:
             continue
 
-        next_candidate = tokens[index+1]
+        next_candidate = tokens[index + 1]  # TODO: fails on 5th of May
         day = 1 if now.month != mo else now.day
         if isinstance(next_candidate, AmbiguousToken):
             if next_candidate.has_day_range_token():
                 day_range = next_candidate.get_day_range_token()
                 day_range.apply_month(mo)
                 day_range.apply_year(now.year)  # TODO: fails on July 3-5, 2018
-                return tokens[:index] + [day_range] + tokens[index+2:]
+                return tokens[:index] + [day_range] + tokens[index + 2:]
         if not next_candidate.isnumeric():
             day = DayToken(month=mo, day=day, year=now.year)
-            return tokens[:index] + [day] + tokens[index+1:]
+            return tokens[:index] + [day] + tokens[index + 1:]
 
         # allow formats July 17, 2018. Do not consume comma if July 17, July 18 ...
         next_candidate = int(next_candidate)
-        next_next_candidate = tokens[index+2] if len(tokens) > index+2 else ''
+        next_next_candidate = tokens[index + 2] if len(tokens) > index + 2 else ''
         if next_next_candidate == ',':
-            next_next_candidate = tokens[index+3] if len(tokens) > index+3 else ''
+            next_next_candidate = tokens[index + 3] if len(tokens) > index + 3 else ''
             if next_next_candidate.isnumeric():
-                tokens = tokens[:index+1] + tokens[index+2:]
+                tokens = tokens[:index + 1] + tokens[index + 2:]
 
         if next_candidate > 31:
             day = 1 if now.month != mo else now.day
             day = DayToken(month=mo, day=day, year=next_candidate)
-            return tokens[:index] + [day] + tokens[index+2:]
+            return tokens[:index] + [day] + tokens[index + 2:]
         elif not next_next_candidate.isnumeric():
             day = DayToken(month=mo, day=next_candidate, year=now.year)
-            return maybe_substitute_using_month(tokens[:index] + [day] + tokens[index+2:], now)
+            return maybe_substitute_using_month(tokens[:index] + [day] + tokens[index + 2:], now)
 
         next_next_candidate = int(next_next_candidate)
         day = DayToken(month=mo, day=next_candidate, year=next_next_candidate)
-        return maybe_substitute_using_month(tokens[:index] + [day] + tokens[index+3:], now)
+        return maybe_substitute_using_month(tokens[:index] + [day] + tokens[index + 3:], now)
     return tokens
 
 
@@ -266,21 +265,20 @@ def maybe_substitute_using_date(tokens, now=datetime.datetime.now()):
                 if punctuation == '-' and parts[1] <= 24:
                     day = AmbiguousToken(
                         day, extract_hour_minute(token))
-                tokens = tokens[:i] + [day] + tokens[i+1:]
+                tokens = tokens[:i] + [day] + tokens[i + 1:]
                 continue
 
             month, day, year = parts
             if year < 1000:
                 year = year + 2000 if year < 50 else year + 1000
             day = DayToken(month=month, day=day, year=year)
-            tokens = tokens[:i] + [day] + tokens[i+1:]
+            tokens = tokens[:i] + [day] + tokens[i + 1:]
         i += 1
     return tokens
 
 
 def extract_hour_minute(string, time_of_day=None):
     """
-
     >>> extract_hour_minute('3:00')
     3:00
     >>> extract_hour_minute('3:00', 'pm')
@@ -347,13 +345,13 @@ def maybe_substitute_hour_minute(tokens):
     for time_of_day in ('am', 'pm'):
         while time_of_day in temp_tokens:
             index = temp_tokens.index(time_of_day)
-            time_token = extract_hour_minute(temp_tokens[index-1], time_of_day)
-            tokens = tokens[:index-1] + [time_token] + tokens[index+1:]
+            time_token = extract_hour_minute(temp_tokens[index - 1], time_of_day)
+            tokens = tokens[:index - 1] + [time_token] + tokens[index + 1:]
             temp_tokens = clean_tokens(tokens, remove_dots)
 
     tokens = [extract_hour_minute(token, None)
-        if isinstance(token, str) and ':' in token else token
-        for token in tokens]
+              if isinstance(token, str) and ':' in token else token
+              for token in tokens]
 
     return tokens
 
@@ -380,5 +378,5 @@ def substitute_hour_minute_in_remaining(tokens, now=datetime.datetime.now()):
             continue
         if token.isnumeric():
             time_token = extract_hour_minute(token)
-            return tokens[:i] + [time_token] + tokens[i+1:]
+            return tokens[:i] + [time_token] + tokens[i + 1:]
     return tokens
