@@ -29,6 +29,7 @@ def categorize(tokens, now=datetime.datetime.now()):
     tokens = list(tokens)
     tokens = convert_day_of_week(tokens, now)
     tokens = convert_relative_days(tokens, now)
+    tokens = convert_default_time_to_next_day(tokens, now)
     tokens = convert_time_of_day(tokens)
     tokens = maybe_substitute_hour_minute(tokens)
     tokens = maybe_substitute_using_date(tokens, now)
@@ -123,6 +124,21 @@ def extract_weeks_offset(tokens, end=None, key_tokens=(
             offset -= 1
         start -= 1
     return start + 1, tokens[:start + 1] + tokens[end:], offset
+
+
+def convert_default_time_to_next_day(tokens, now=datetime.datetime.now()):
+    for token in tokens:
+        # Check for times that use colon
+        if ":" in token:
+            index = ':'.index(token)
+            if index < len(token)-1:
+                h = token[:index]
+                m = token[index+1:]
+                if h.isdigit() and m.isdigit() and (int(h) < now.hour or (int(h) == now.hour and int(m) < now.minute)):
+                    tokens.append(DayToken.from_datetime(now + datetime.timedelta(1)))
+        if token.isdigit() and int(token) <= now.hour:
+            tokens.append(DayToken.from_datetime(now + datetime.timedelta(1)))
+
 
 
 def convert_time_of_day(tokens):
